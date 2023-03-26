@@ -97,6 +97,9 @@ def invoke_method(server: str, method: str, params: dict, session_id: str) -> tu
     Invoke a method on the MSP API
     """
 
+    if server.lower() == "uk":
+        server = "gb"
+
     req = remoting.Request(target=method, body=params)
     event = remoting.Envelope(AMF3)
 
