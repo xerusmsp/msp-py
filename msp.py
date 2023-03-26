@@ -92,7 +92,7 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
     return hashlib.sha1(result_str.encode()).hexdigest()
 
 
-def invoke_method(server: str, method: str, params: dict, session_id: str) -> tuple:
+def invoke_method(server: str, method: str, params: dict, session_id: str) -> object:
     """
     Invoke a method on the MSP API
     """
