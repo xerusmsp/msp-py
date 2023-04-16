@@ -12,14 +12,21 @@ from datetime import date, datetime
 from urllib.parse import urlparse
 from pyamf import remoting, ASObject, TypedObject, AMF3
 
+# Generator to retrieve a Marking ID for ticket headers
+def _marking_id():
+    _int = random.randint(1, 100)
+    while True:
+        _int += random.randint(1, 2)
+        yield _int
 
+# Instantiate the generator
+marking_id = _marking_id()
 def ticket_header(ticket: str) -> ASObject:
     """
     Generate a ticket header for the given ticket
     """
 
-    marking_id = int(random.uniform(0.0, 0.1) * 1000) + 1
-    loc1bytes = str(marking_id).encode('utf-8')
+    loc1bytes = str(next(marking_id)).encode('utf-8')
     loc5 = hashlib.md5(loc1bytes).hexdigest()
     loc6 = binascii.hexlify(loc1bytes).decode()
     return ASObject({"Ticket": ticket + loc5 + loc6, "anyAttribute": None})
