@@ -53,7 +53,7 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
             return from_byte_array(obj)
 
         if isinstance(obj, (date, datetime)):
-            return obj.strftime('%Y%m%d')
+            return str(obj.year) + str(obj.month - 1) + str(obj.day)
 
         if isinstance(obj, (list, dict)) and "Ticket" not in obj:
             return from_array(obj)
