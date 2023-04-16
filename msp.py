@@ -4,32 +4,31 @@ A Python implementation to interact with the MSP API
 
 import hashlib
 import binascii
-import http.client
 import random
 import base64
+import msp_tls_client
 from typing import List, Union
 from datetime import date, datetime
-from urllib.parse import urlparse
-from pyamf import remoting, ASObject, TypedObject, AMF3
+from pyamf import remoting, ASObject, TypedObject, AMF3, amf3
+from secrets import token_hex
 
-# Generator to retrieve a Marking ID for ticket headers
-def _marking_id():
-    _int = random.randint(1, 100)
-    while True:
-        _int += random.randint(1, 2)
-        yield _int
+def get_marking_id() -> int:
+    """
+    Generate a random marking ID
+    """
+    marking_id = random.randint(2**0, 2**32)
+    return marking_id
 
-# Instantiate the generator
-marking_id = _marking_id()
 def ticket_header(ticket: str) -> ASObject:
     """
     Generate a ticket header for the given ticket
     """
 
-    loc1bytes = str(next(marking_id)).encode('utf-8')
-    loc5 = hashlib.md5(loc1bytes).hexdigest()
-    loc6 = binascii.hexlify(loc1bytes).decode()
-    return ASObject({"Ticket": ticket + loc5 + loc6, "anyAttribute": None})
+    marking_id = get_marking_id()
+    marking_id_bytes = str(marking_id).encode('utf-8')
+    marking_id_hash = hashlib.md5(marking_id_bytes).hexdigest()
+    marking_id_hex = binascii.hexlify(marking_id_bytes).decode()
+    return ASObject({"Ticket": ticket + marking_id_hash + marking_id_hex, "anyAttribute": None})
 
 
 def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, str, bool, bytes]],
@@ -39,8 +38,8 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
     """
 
     checked_objects = {}
-    no_ticket_value = "v1n3g4r"
-    salt = "$CuaS44qoi0Mp2qp"
+    no_ticket_value = "XSV7%!5!AX2L8@vn"
+    salt = "2zKzokBI4^26#oiP"
 
     def from_object(obj):
         if obj is None:
@@ -49,7 +48,7 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
         if isinstance(obj, (int, str, bool)):
             return str(obj)
 
-        if isinstance(obj, bytes):
+        if isinstance(obj, amf3.ByteArray):
             return from_byte_array(obj)
 
         if isinstance(obj, (date, datetime)):
@@ -60,12 +59,17 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
 
         return ""
 
-    def from_byte_array(byte_array):
-        if len(byte_array) <= 20:
-            return binascii.hexlify(byte_array).decode('utf-8')
+    def from_byte_array(bytes):
+        if len(bytes) <= 20:
+            return bytes.getvalue().hex()
 
-        bytes_to_check = [byte_array[int(len(byte_array) / 20 * i)] for i in range(20)]
-        return binascii.hexlify(bytes(bytes_to_check)).decode('utf-8')
+        num = len(bytes) // 20
+        array = bytearray(20)
+        for i in range(20):
+            bytes.seek(num * i)
+            array[i] = bytes.read(1)[0]
+
+        return array.hex()
 
     def from_array(arr):
         result = ""
@@ -81,25 +85,25 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
             if isinstance(obj, ASObject) and "Ticket" in obj:
                 ticket_str = obj["Ticket"]
                 if ',' in ticket_str:
-                    return ticket_str.split(',')[5][:5]
+                    ticket_parts = ticket_str.split(',')
+                    return ticket_parts[0] + ticket_parts[5][-5:]
         return no_ticket_value
 
     def from_object_inner(obj):
         result = ""
         if isinstance(obj, dict):
             for key in sorted(obj.keys()):
-                if key not in checked_objects:
-                    result += from_object(obj[key])
-                    checked_objects[key] = True
+                result += from_object(obj[key])
+                checked_objects[key] = True
         else:
             result += from_object(obj)
         return result
 
-    result_str = from_object_inner(arguments) + get_ticket_value(arguments) + salt
+    result_str = from_object_inner(arguments) + salt + get_ticket_value(arguments)
     return hashlib.sha1(result_str.encode()).hexdigest()
 
 
-def invoke_method(server: str, method: str, params: dict, session_id: str) -> object:
+def invoke_method(server: str, method: str, params: list, session_id: str) -> tuple[int, any]:
     """
     Invoke a method on the MSP API
     """
@@ -120,7 +124,11 @@ def invoke_method(server: str, method: str, params: dict, session_id: str) -> ob
     encoded_req = remoting.encode(event).getvalue()
 
     full_endpoint = f"https://ws-{server}.mspapis.com/Gateway.aspx?method={method}"
-    conn = http.client.HTTPSConnection(urlparse(full_endpoint).hostname)
+
+    session = msp_tls_client.Session(
+        client_identifier="xerus_ja3_spoof",
+        force_http1=True,
+    )
 
     headers = {
         "Referer": "app:/cache/t1.bin/[[DYNAMIC]]/2",
@@ -129,31 +137,26 @@ def invoke_method(server: str, method: str, params: dict, session_id: str) -> ob
                    "image/jpeg, image/gif;q=0.8, application/x-shockwave-flash, "
                    "video/mp4;q=0.9, flv-application/octet-stream;q=0.8, "
                    "video/x-flv;q=0.7, audio/mp4, application/futuresplash, "
-                   "*/*;q=0.5, application/x-mpegURL"),
+                   "/;q=0.5, application/x-mpegURL"),
         "x-flash-version": "32,0,0,100",
-        "Content-Length": str(len(encoded_req)),
         "Content-Type": "application/x-amf",
         "Accept-Encoding": "gzip, deflate",
         "User-Agent": "Mozilla/5.0 (Windows; U; en) AppleWebKit/533.19.4 "
                       "(KHTML, like Gecko) AdobeAIR/32.0",
         "Connection": "Keep-Alive",
     }
-    path = urlparse(full_endpoint).path
-    query = urlparse(full_endpoint).query
-    conn.request("POST", path + "?" + query, encoded_req, headers=headers)
 
-    with conn.getresponse() as resp:
-        resp_data = resp.read() if resp.status == 200 else None
-        if resp.status != 200:
-            return (resp.status, resp_data)
-        return (resp.status, remoting.decode(resp_data)["/1"].body)
+    response = session.post(full_endpoint, data=encoded_req, headers=headers)
+
+    resp_data = response.content if response.status_code == 200 else None
+
+    if response.status_code != 200:
+        return (response.status_code, resp_data)
+    return (response.status_code, remoting.decode(resp_data)["/1"].body)
 
 
 def get_session_id() -> str:
     """
     Generate a random session id
     """
-
-    session_id = ''.join(f'{random.randint(0, 15):x}' for _ in range(48))
-    session_id = session_id[:46]
-    return base64.b64encode(session_id.encode()).decode()
+    return base64.b64encode(token_hex(23).encode()).decode()
