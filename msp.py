@@ -8,18 +8,27 @@ import http.client
 import random
 import base64
 from typing import List, Union
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from urllib.parse import urlparse
 from pyamf import remoting, ASObject, TypedObject, AMF3
 
 
+# Generator to retrieve a Marking ID for ticket headers
+def _marking_id():
+    _int = random.randint(1, 100)
+    while True:
+        _int += random.randint(1, 2)
+        yield _int
+
+# Instantiate the generator
+marking_id = _marking_id()
 def ticket_header(ticket: str) -> ASObject:
     """
     Generate a ticket header for the given ticket
     """
 
-    marking_id = int(random.uniform(0.0, 0.1) * 1000) + 1
-    loc1bytes = str(marking_id).encode('utf-8')
+    loc1bytes = str(next(marking_id)).encode('utf-8')
     loc5 = hashlib.md5(loc1bytes).hexdigest()
     loc6 = binascii.hexlify(loc1bytes).decode()
     return ASObject({"Ticket": ticket + loc5 + loc6, "anyAttribute": None})
@@ -46,7 +55,7 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
             return from_byte_array(obj)
 
         if isinstance(obj, (date, datetime)):
-            return obj.strftime('%Y%m%d')
+            return str(obj.year) + str(obj.month - 1) + str(obj.day)
 
         if isinstance(obj, (list, dict)) and "Ticket" not in obj:
             return from_array(obj)
@@ -92,7 +101,7 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
     return hashlib.sha1(result_str.encode()).hexdigest()
 
 
-def invoke_method(server: str, method: str, params: dict, session_id: str) -> tuple:
+def invoke_method(server: str, method: str, params: list, session_id: str) -> tuple[int, Mapping|Sequence]:
     """
     Invoke a method on the MSP API
     """
