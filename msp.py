@@ -100,10 +100,14 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
     return hashlib.sha1(result_str.encode()).hexdigest()
 
 
+
 def invoke_method(server: str, method: str, params: list, session_id: str) -> tuple[int, any]:
     """
     Invoke a method on the MSP API
     """
+
+    if server.lower() == "uk":
+        server = "gb"
 
     req = remoting.Request(target=method, body=params)
     event = remoting.Envelope(AMF3)
