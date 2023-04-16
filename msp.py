@@ -8,9 +8,11 @@ import http.client
 import random
 import base64
 from typing import List, Union
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from urllib.parse import urlparse
 from pyamf import remoting, ASObject, TypedObject, AMF3
+
 
 # Generator to retrieve a Marking ID for ticket headers
 def _marking_id():
@@ -99,7 +101,7 @@ def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, s
     return hashlib.sha1(result_str.encode()).hexdigest()
 
 
-def invoke_method(server: str, method: str, params: dict, session_id: str) -> tuple:
+def invoke_method(server: str, method: str, params: list, session_id: str) -> tuple[int, Mapping|Sequence]:
     """
     Invoke a method on the MSP API
     """
