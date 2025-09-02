@@ -34,13 +34,14 @@ if status != "Success":
 # Retrieve the auth ticket and actor ID from the login response
 ticket = resp['loginStatus']['ticket']
 actor_id = resp['loginStatus']['actor']['ActorId']
+access_token = resp['loginStatus']['nebulaLoginStatus']['accessToken']
 
 # Call the authenticated method and retrieve the response
 code, resp = invoke_method(
     SERVER,
     "MovieStarPlanet.WebService.UserSession.AMFUserSessionService.LoadActorDetailsExtended", 
     [
-        ticket_header(ticket),
+        ticket_header(ticket, access_token),
         actor_id
     ],
     get_session_id()
