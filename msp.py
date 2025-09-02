@@ -19,7 +19,7 @@ def get_marking_id() -> int:
     marking_id = random.randint(2**0, 2**32)
     return marking_id
 
-def ticket_header(ticket: str) -> ASObject:
+def ticket_header(ticket: str, access_token: str = None) -> ASObject:
     """
     Generate a ticket header for the given ticket
     """
@@ -28,7 +28,7 @@ def ticket_header(ticket: str) -> ASObject:
     marking_id_bytes = str(marking_id).encode('utf-8')
     marking_id_hash = hashlib.md5(marking_id_bytes).hexdigest()
     marking_id_hex = binascii.hexlify(marking_id_bytes).decode()
-    return ASObject({"Ticket": ticket + marking_id_hash + marking_id_hex, "anyAttribute": None})
+    return ASObject({"Ticket": ticket + marking_id_hash + marking_id_hex, "anyAttribute": {"Token": access_token}})
 
 
 def calculate_checksum(arguments: Union[int, str, bool, bytes, List[Union[int, str, bool, bytes]],
